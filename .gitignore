@@ -1,1 +1,4 @@
 config.json
+upmed_testing.py
+__pycache__/app_interface.cpython-310.pyc
+__pycache__/parallel_testing.cpython-310.pyc
