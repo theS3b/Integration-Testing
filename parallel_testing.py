@@ -11,6 +11,9 @@ from enum import Enum
 import os
 import real_time_plot
 
+# Disable pylint warnings
+# pylint: disable=C0103
+
 
 class Simulator:
     """Simulates a load test."""
