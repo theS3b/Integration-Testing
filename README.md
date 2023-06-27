@@ -47,6 +47,7 @@ To use the load testing simulator, follow these steps:
 Here's an example usage of the load testing simulator:
 
 ```python
+import os
 import time
 import random
 import real_time_plot
@@ -60,19 +61,10 @@ def fun(x):
 
 def main():
     """Main function."""
-    # Create a result queue
-    qu = queue.Queue()
-
-    # Create an instance of the Simulator class
-    sim = Simulator([(fun, 1)], 5, qu, 5, 5, 5, 10)
-
-    # Start the load test
+    sim = Simulator([(fun, 1)], 5, None, 5, 5, 5, 10)
     sim.simulate()
 
-    # Print the results
-    print("Results:")
-    while not qu.empty():
-        print(qu.get())
+    os.system("rtp.pdf")
 
 if __name__ == "__main__":
     main()

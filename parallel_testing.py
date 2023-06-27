@@ -9,6 +9,7 @@ import queue
 from math import ceil, floor
 from enum import Enum
 import real_time_plot
+import os
 
 
 class Simulator:
@@ -65,7 +66,7 @@ class Simulator:
         self.thread_pool = set()
 
         # Initialize real time plots
-        self.rtp = real_time_plot.RealTimePlot("Load testing", "Time (s)", [
+        self.rtp = real_time_plot.RealTimePlot("Load Test Results", "Time (s)", [
             "Number of users", "Response time (s)", "Success rate"], [1, 2, 1])
 
     def __simulate_user(self, user_id):
@@ -227,13 +228,10 @@ def fun(x):
 
 def main():
     """Main function."""
-    qu = queue.Queue()
-    sim = Simulator([(fun, 1)], 5, qu, 5, 5, 5, 10)
+    sim = Simulator([(fun, 1)], 5, None, 5, 5, 5, 10)
     sim.simulate()
 
-    print("Results:")
-    while not qu.empty():
-        print(qu.get())
+    os.system("rtp.pdf")
 
 
 if __name__ == "__main__":

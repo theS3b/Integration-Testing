@@ -50,6 +50,7 @@ class RealTimePlot:
         self.screen = pf.screen(np.zeros((720, 720)), title=title)
 
         self.configuration = configuration
+        self.title = title
 
     def update_line(self, new_data):
         """
@@ -76,6 +77,8 @@ class RealTimePlot:
 
     def save(self, plt_name = "rtp.pdf"):
         """Shows the plot."""
+        # Add title
+        self.fig.suptitle(self.title, fontsize=16)
         plt.savefig(plt_name, bbox_inches="tight")
         self.close()
 
