@@ -5,83 +5,86 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import time
+import code
 
 
 class RealTimePlot:
     """Class that can be used to plot data in real time."""
 
-    def __init__(self, x_label, y_label, title, x_range, y_range):
+    def __init__(self, title, x_label, y_labels):
         """
-        :param x_label: Label of the x axis
-        :param y_label: Label of the y axis
         :param title: Title of the plot
-        :param x_range: Range of the x axis
-        :param y_range: Range of the y axis
+        :param x_label: Label of the x axis
+        :param y_labels: List of labels of the y axis
         """
-        self.x_label = x_label
-        self.y_label = y_label
-        self.title = title
-        self.x_range = x_range
-        self.y_range = y_range
-
-        # Initialize empty lists to store x and y values
-        self.x_values = []
-        self.y_values = []
+        assert isinstance(y_labels, list), "Y labels must be a list"
+        assert isinstance(x_label, str), "X label must be a string"
+        assert isinstance(title, str), "Title must be a string"
 
         # Create an empty plot
         plt.ion()  # Turn on interactive mode
-        self.fig, self.ax = plt.subplots()
-        (self.line,) = self.ax.plot(self.x_values, self.y_values)
+        self.fig, self.axes = plt.subplots(
+            len(y_labels), 1)  # Create x subplots
+        self.lines = []  # Store the lines for each subplot
 
-        # Set up the plot
-        self.ax.set_xlabel(self.x_label)
-        self.ax.set_ylabel(self.y_label)
-        self.ax.set_title(self.title)
+        self.fig.suptitle(title)
+
+        # Set up the subplots
+        for i, ax in enumerate(self.axes):
+            line, = ax.plot([], [])
+            self.lines.append(line)
+
+            ax.set_ylabel(y_labels[i])
+
+        self.axes[-1].set_xlabel(x_label)
+
+        # Add space between subplots
+        plt.subplots_adjust(hspace=0.5)
+
+        # Make it bigger
+        self.fig.set_size_inches(10, 8)
+
+        # Make title less far from the plot
+        self.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
         plt.pause(0.1)
 
     def update_line(self, new_data):
         """
-        Updates the plot with new data.
+        Updates the specified subplot with new data.
 
-        :param new_data: New data to add to the plot (y value)
+        :param new_data: New data to add to the subplot (y values)
         """
 
-        self.line.set_xdata(np.append(
-            self.line.get_xdata(), len(self.line.get_xdata())+1))
-        self.line.set_ydata(np.append(self.line.get_ydata(), new_data))
+        for i, line in enumerate(self.lines):
+            line.set_xdata(
+                np.append(line.get_xdata(), len(line.get_xdata())+1))
+            line.set_ydata(np.append(line.get_ydata(), new_data[i]))
 
-        # Adjust the plot limits
-        self.ax.relim()
-        self.ax.autoscale_view()
+        # Adjust the subplot limits
+        for ax in self.axes:
+            ax.relim()
+            ax.autoscale_view()
 
         plt.draw()
-
         plt.pause(0.1)
 
     def show(self):
         """Shows the plot."""
-
         plt.show()
+        code.interact(local=locals())
 
     def close(self):
         """Closes the plot."""
-
+        plt.ioff()
         plt.close()
 
 
 # Test
 if __name__ == "__main__":
-    # Create a plot
-    plot = RealTimePlot("X", "Y", "Dynamic Line Graph", [0, 100], [0, 100])
+    # Test the RealTimePlot class
+    rtp = RealTimePlot("Test", "X", ["Y1", "Y2", "Y3"])
 
-    # Add data to the plot
-    for i in range(100):
-        plot.update_line(i)
-        time.sleep(0.1)
-
-    # Show the plot
-    plot.show()
-
-    # Close the plot
-    plot.close()
+    for i in range(50):
+        rtp.update_line((i, i**2, i**3))
+        time.sleep(0.01)

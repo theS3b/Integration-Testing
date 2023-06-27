@@ -9,6 +9,7 @@ import queue
 from math import ceil, floor
 from enum import Enum
 import real_time_plot
+import code
 
 
 class Simulator:
@@ -65,21 +66,8 @@ class Simulator:
         self.thread_pool = set()
 
         # Initialize real time plots
-        self.rtp_nb_users = real_time_plot.RealTimePlot(
-            "Time (s)",
-            "Number of users",
-            "Load testing - Number of Users",
-            (0, 10),
-            (0, peak_users),
-        )
-
-        self.rtp_avg_resp_time = real_time_plot.RealTimePlot(
-            "Time (s)", "Average response time (s)", "Load testing - Response Time", (0, 10), (0, 1)
-        )
-
-        self.rtp_success_rate = real_time_plot.RealTimePlot(
-            "Time (s)", "Success rate", "Load testing - Success Rate", (0, 10), (0, 1)
-        )
+        self.rtp = real_time_plot.RealTimePlot("Load testing", "Time (s)", [
+            "Number of users", "Average response time (s)", "Success rate"])
 
     def __simulate_user(self, user_id):
         """
@@ -128,9 +116,8 @@ class Simulator:
         )
 
         # Update real time plots
-        self.rtp_nb_users.update_line(self.current_users)
-        self.rtp_avg_resp_time.update_line(avg_resp_time)
-        self.rtp_success_rate.update_line(success_rate)
+        self.rtp.update_line(
+            [self.current_users, avg_resp_time, success_rate])
 
     def simulate(self):
         """Simulates the load test."""
@@ -218,11 +205,8 @@ class Simulator:
 
             if state == self.State.FINISHED:
                 print("Load testing finished.")
-
-                # Show real time plots
-                self.rtp_nb_users.show()
-                self.rtp_avg_resp_time.show()
-                self.rtp_success_rate.show()
+                self.__show_progress()
+                self.rtp.show()
 
 
 def fun(x):
