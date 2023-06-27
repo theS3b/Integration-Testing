@@ -8,8 +8,8 @@ import random
 import queue
 from math import ceil, floor
 from enum import Enum
-import real_time_plot
 import os
+import real_time_plot
 
 
 class Simulator:
