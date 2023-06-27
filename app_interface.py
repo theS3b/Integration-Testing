@@ -20,7 +20,7 @@ except ImportError:
 # Create class from functions below
 class AppInterface:
     """ Class that contains methods usefull to test a web app. """
-    def __init__(self, base_url, timeout = 5):
+    def __init__(self, base_url, timeout = 10):
         """ Initializes the class. """
         self.s = requests.Session()
         

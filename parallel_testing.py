@@ -89,7 +89,7 @@ class Simulator:
         start_time = time.time()
 
         # Perform action
-        ret = action(user_id)
+        ret = action(user_id, self.timeout)
 
         end_time = time.time()
         execution_time = end_time - start_time
