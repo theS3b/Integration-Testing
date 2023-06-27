@@ -9,7 +9,6 @@ import queue
 from math import ceil, floor
 from enum import Enum
 import real_time_plot
-import code
 
 
 class Simulator:
@@ -67,7 +66,7 @@ class Simulator:
 
         # Initialize real time plots
         self.rtp = real_time_plot.RealTimePlot("Load testing", "Time (s)", [
-            "Number of users", "Average response time (s)", "Success rate"])
+            "Number of users", "Response time (s)", "Success rate"], [1, 2, 1])
 
     def __simulate_user(self, user_id):
         """
@@ -104,20 +103,30 @@ class Simulator:
 
     def __show_progress(self):
         """Shows the progress of the load test."""
+        # Get content of the result queue
+        results = []
+        while True:
+            try:
+                results.append(self.result_queue.get_nowait())
+            except queue.Empty:
+                break
+
+        new_exists = len(results) > 0
+
         avg_resp_time = (
-            sum((resp_time for resp_time, _ in self.result_queue.queue)) /
-            len(self.result_queue.queue)
-            if len(self.result_queue.queue) > 0 else 0)
+            sum((resp_time for resp_time, _ in results)) / len(results)
+            if new_exists else 0)
+
+        max_resp_time = max((resp_time for resp_time, _ in results)) if new_exists else 0
 
         success_rate = (
-            sum((1 if ret else 0 for _, ret in self.result_queue.queue)) /
-            len(self.result_queue.queue)
-            if len(self.result_queue.queue) > 0 else 0
+            sum((1 if ret else 0 for _, ret in results)) / len(results)
+            if new_exists else 0
         )
 
         # Update real time plots
         self.rtp.update_line(
-            [self.current_users, avg_resp_time, success_rate])
+            [self.current_users, avg_resp_time, max_resp_time, success_rate])
 
     def simulate(self):
         """Simulates the load test."""
@@ -206,16 +215,18 @@ class Simulator:
             if state == self.State.FINISHED:
                 print("Load testing finished.")
                 self.__show_progress()
-                self.rtp.show()
+                self.rtp.save()
 
 
 def fun(x):
-    print('test', x)
-    time.sleep(5)
-    return x
+    """Function to simulate a request to the server."""
+    a = random.random()
+    time.sleep(a)
+    return a > 0.5
 
 
 def main():
+    """Main function."""
     qu = queue.Queue()
     sim = Simulator([(fun, 1)], 5, qu, 5, 5, 5, 10)
     sim.simulate()
