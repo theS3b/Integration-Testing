@@ -48,11 +48,7 @@ Here's an example usage of the load testing simulator:
 
 ```python
 import time
-import threading
 import random
-import queue
-from math import ceil, floor
-from enum import Enum
 import real_time_plot
 
 # Define the action function
