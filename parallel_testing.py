@@ -9,8 +9,8 @@ import queue
 from math import ceil, floor
 from enum import Enum
 import os
-from itertools import chain
 import real_time_plot
+import app_outcome
 
 # Disable pylint warnings
 # pylint: disable=C0103
@@ -38,7 +38,7 @@ class Simulator:
         timeout,
     ):
         """
-        :param actions: List of actions to perform. Of the form [(action, probability), ...] where action is a function that takes user_id and returns true if successful, and probability is the probability of that action being performed
+        :param actions: List of actions to perform. Of the form [(action, probability), ...] where action is a function that takes a user ID and a timeout as parameters and returns an AppOutcome object, and probability is the probability of performing the action
         :param peak_users: Number of users to simulate at peak
         :param ramp_up_time: Time to ramp up to peak users
         :param load_time: Time to hold peak users
@@ -73,7 +73,7 @@ class Simulator:
         self.rtp = real_time_plot.RealTimePlot("Load Test Results", "Time (s)", [
             "Number of users", "Response time (s)", "Success rate"], [1, 2, 1])
 
-    def __simulate_user(self, user_id):
+    def __simulate_user(self, user_id) -> app_outcome.AppOutcome:
         """
         Simulates a single user's behavior and returns a value.
 
@@ -88,12 +88,7 @@ class Simulator:
         )[0]
 
         # Perform action
-        ret = action(user_id, self.timeout)
-
-        # Warning ! Depends on the return type of the action.
-        success, times = ret
-
-        return times, success
+        return action(user_id, self.timeout)
 
     def __launch_user(self, thread):
         """Launches a user thread."""
@@ -114,32 +109,9 @@ class Simulator:
             except queue.Empty:
                 break
 
-        new_exists = len(results) > 0
-
-        # Use generators to get the times taken
-        resp_times = chain.from_iterable(resp_time for resp_time, _ in results)
-        tot_len_times = sum(len(resp_time) for resp_time, _ in results)
-
-        # Print resp times
-        for x in resp_times:
-            print(x)
-
-        # Avg time
-        s = 0
-        max_resp_time = 0
-        for x in resp_times:
-            s += x
-            m = m if m > x else x
-
-        avg_resp_time = s / tot_len_times if new_exists else 0
-
-        print(avg_resp_time)
-
-        # Success rate
-        success_rate = (
-            sum(success for _, success in results) / len(results)
-            if new_exists else 0
-        )
+        # Get stats
+        avg_resp_time, max_resp_time, success_rate = app_outcome.get_stats(
+            results)
 
         # Update real time plots
         self.rtp.update_line(
@@ -239,7 +211,7 @@ def fun(x, timeout):
     """Function to simulate a request to the server."""
     a = random.random()
     time.sleep(a)
-    return a > 0.5, [random.uniform(1,2), random.uniform(1,2)]
+    return app_outcome.AppOutcome(times=[a], body="test", status_code=(200 if a < 0.5 else 404))
 
 
 def main():
