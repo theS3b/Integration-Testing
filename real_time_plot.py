@@ -3,9 +3,9 @@
 # Date: 2023-06-26
 
 import matplotlib.pyplot as plt
-import pyformulas as pf
 import numpy as np
 import time
+import pyformulas as pf
 
 
 class RealTimePlot:
@@ -21,7 +21,8 @@ class RealTimePlot:
         assert isinstance(y_labels, list), "Y labels must be a list"
         assert isinstance(x_label, str), "X label must be a string"
         assert isinstance(title, str), "Title must be a string"
-        assert len(y_labels) == len(configuration), "Y labels and configuration must have the same length"
+        assert len(y_labels) == len(
+            configuration), "Y labels and configuration must have the same length"
 
         # Create an empty plot
         self.fig, self.axes = plt.subplots(
@@ -43,10 +44,10 @@ class RealTimePlot:
 
         # Make it bigger
         self.fig.set_size_inches(10, 8)
-        
+
         # Make title less far from the plot
         self.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-        
+
         self.screen = pf.screen(np.zeros((720, 720)), title=title)
 
         self.configuration = configuration
@@ -58,7 +59,8 @@ class RealTimePlot:
 
         :param new_data: New data to add to the subplot (y values)
         """
-        assert len(new_data) == len(self.lines), "New data must have the same length as the number of lines"
+        assert len(new_data) == len(
+            self.lines), "New data must have the same length as the number of lines"
 
         for i, line in enumerate(self.lines):
             line.set_xdata(
@@ -75,7 +77,7 @@ class RealTimePlot:
         image = image.reshape(self.fig.canvas.get_width_height()[::-1] + (3,))
         self.screen.update(image)
 
-    def save(self, plt_name = "rtp.pdf"):
+    def save(self, plt_name="rtp.pdf"):
         """Shows the plot."""
         # Add title
         self.fig.suptitle(self.title, fontsize=16)
@@ -90,7 +92,7 @@ class RealTimePlot:
 # Test
 if __name__ == "__main__":
     # Test the RealTimePlot class
-    rtp = RealTimePlot("Test", "X", ["Y1", "Y2"], [2,1])
+    rtp = RealTimePlot("Test", "X", ["Y1", "Y2"], [2, 1])
 
     for i in range(50):
         rtp.update_line((i, i**2, i**3))

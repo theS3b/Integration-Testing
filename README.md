@@ -16,6 +16,12 @@ The simulator uses threads to simulate concurrent user requests and provides rea
 ## Dependencies
 The following dependencies are required to run the load testing simulator:
 
+To install:
+
+- `pyformulas`: A custom module for real-time plotting.
+
+Already installed with Python:
+
 - `time`: Provides functions for working with time-related tasks.
 - `threading`: Allows the use of threads for concurrent execution.
 - `random`: Provides functions for generating random numbers.

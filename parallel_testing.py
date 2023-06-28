@@ -9,6 +9,7 @@ import queue
 from math import ceil, floor
 from enum import Enum
 import os
+from itertools import chain
 import real_time_plot
 
 # Disable pylint warnings
@@ -62,8 +63,8 @@ class Simulator:
         self.timeout = timeout
         self.actions = actions
         self.result_queue = result_queue if result_queue is not None else queue.Queue()
-        self.inform_time = 2  # Inform the user every 5 seconds via the console
-        self.rtp_update_time = 1  # Update the real time plots every 1 second
+        self.inform_time = 2  # Inform the user every x seconds via the console
+        self.rtp_update_time = 1  # Update the real time plots every x second
 
         self.current_users = 0
         self.thread_pool = set()
@@ -86,15 +87,13 @@ class Simulator:
             [prob for action, prob in self.actions],
         )[0]
 
-        start_time = time.time()
-
         # Perform action
         ret = action(user_id, self.timeout)
 
-        end_time = time.time()
-        execution_time = end_time - start_time
+        # Warning ! Depends on the return type of the action.
+        success, times = ret
 
-        return execution_time, ret
+        return times, success
 
     def __launch_user(self, thread):
         """Launches a user thread."""
@@ -117,14 +116,28 @@ class Simulator:
 
         new_exists = len(results) > 0
 
-        avg_resp_time = (
-            sum((resp_time for resp_time, _ in results)) / len(results)
-            if new_exists else 0)
+        # Use generators to get the times taken
+        resp_times = chain.from_iterable(resp_time for resp_time, _ in results)
+        tot_len_times = sum(len(resp_time) for resp_time, _ in results)
 
-        max_resp_time = max((resp_time for resp_time, _ in results)) if new_exists else 0
+        # Print resp times
+        for x in resp_times:
+            print(x)
 
+        # Avg time
+        s = 0
+        max_resp_time = 0
+        for x in resp_times:
+            s += x
+            m = m if m > x else x
+
+        avg_resp_time = s / tot_len_times if new_exists else 0
+
+        print(avg_resp_time)
+
+        # Success rate
         success_rate = (
-            sum((1 if ret else 0 for _, ret in results)) / len(results)
+            sum(success for _, success in results) / len(results)
             if new_exists else 0
         )
 
@@ -222,11 +235,11 @@ class Simulator:
                 self.rtp.save()
 
 
-def fun(x):
+def fun(x, timeout):
     """Function to simulate a request to the server."""
     a = random.random()
     time.sleep(a)
-    return a > 0.5
+    return a > 0.5, [random.uniform(1,2), random.uniform(1,2)]
 
 
 def main():

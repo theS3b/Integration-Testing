@@ -6,6 +6,7 @@
 # pylint: disable=W0703
 # pylint: disable=C0103
 
+import time
 import json
 import requests
 import urllib3
@@ -33,12 +34,13 @@ class AppInterface:
         :param endpoint: Endpoint to make the request to (e.g. / or /account)
         :return: A tuple (success, body) where success is True if the request was successful, False otherwise, and body is the body of the response
         '''
+        st = time.time()
         try:
             response = self.s.get(self.BASE_URL + endpoint, timeout=self.timeout, verify=False)
-            return response.status_code == self.OK_CODE, response
+            return response.status_code == self.OK_CODE, response, [time.time() - st]
         except Exception as e:
             # Return false and info about exception
-            return False, str(e)
+            return False, str(e), [time.time() - st]
 
     def simple_post(self, endpoint, data):
         ''' Makes a POST request to the specified URL.
@@ -53,15 +55,17 @@ class AppInterface:
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'
         }
 
+        st = time.time()
         try:
             response = self.s.post(self.BASE_URL + endpoint, data = data, timeout=self.timeout, verify=False, headers = headers)
+            en = time.time()
             if response.status_code != self.OK_CODE:
-                return False, response.text + "\n" + response.reason + "\n" + response.url + "\n" + str(response.status_code)
+                return False, response.text + "\n" + response.reason + "\n" + response.url + "\n" + str(response.status_code), [en - st]
             
-            return True, response
+            return True, response, [en - st]
 
         except Exception as e:
-            return False, str(e)
+            return False, str(e), [time.time() - st]
 
     def get_token_and_post(self, token_endpoint, post_endpoint, data):
         ''' Makes a POST request to the specified URL.
@@ -73,7 +77,7 @@ class AppInterface:
         assert isinstance(data, dict), "Data must be a dictionary"
 
         # Get page with token
-        success, response = self.simple_get(token_endpoint)
+        success, response, t1 = self.simple_get(token_endpoint)
         if not success:
             return False, response
 
@@ -85,7 +89,8 @@ class AppInterface:
             return False, str(e)
 
         # Post
-        return self.simple_post(post_endpoint, {"__RequestVerificationToken": token, **data})
+        success, response, t2 = self.simple_post(post_endpoint, {"__RequestVerificationToken": token, **data})
+        return success, response, t1.extend(t2)
 
     def __del__(self):
         ''' Destructor. '''
