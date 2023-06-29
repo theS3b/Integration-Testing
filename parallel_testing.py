@@ -9,6 +9,7 @@ import queue
 from math import ceil, floor
 from enum import Enum
 import os
+from typing import Union, List, Tuple, Iterable
 import real_time_plot
 import app_outcome
 
@@ -31,7 +32,7 @@ class Simulator:
         self,
         actions,
         peak_users,
-        result_queue,
+        result_queue: queue.Queue[List[app_outcome.AppOutcome]],
         ramp_up_time,
         load_time,
         ramp_down_time,
@@ -66,14 +67,17 @@ class Simulator:
         self.inform_time = 2  # Inform the user every x seconds via the console
         self.rtp_update_time = 1  # Update the real time plots every x second
 
+        self.start_simulation_time = 0
+
         self.current_users = 0
         self.thread_pool = set()
+        self.total_action_results = []
 
         # Initialize real time plots
         self.rtp = real_time_plot.RealTimePlot("Load Test Results", "Time (s)", [
-            "Number of users", "Response time (s)", "Success rate"], [1, 2, 1])
+            "Number of users", "Response time (s)", "Success rate"], [1, 3, 1])
 
-    def __simulate_user(self, user_id) -> app_outcome.AppOutcome:
+    def __simulate_user(self, user_id) -> List[app_outcome.AppOutcome]:
         """
         Simulates a single user's behavior and returns a value.
 
@@ -105,17 +109,20 @@ class Simulator:
         results = []
         while True:
             try:
-                results.append(self.result_queue.get_nowait())
+                result = self.result_queue.get_nowait()
+                results.extend(result)
+                self.total_action_results.extend(
+                    r.light_copy() for r in result)
             except queue.Empty:
                 break
 
         # Get stats
-        avg_resp_time, max_resp_time, success_rate = app_outcome.get_stats(
+        avg_resp_time, max_resp_time, min_resp_time, success_rate = app_outcome.get_stats(
             results)
 
         # Update real time plots
         self.rtp.update_line(
-            [self.current_users, avg_resp_time, max_resp_time, success_rate])
+            [self.current_users, avg_resp_time, max_resp_time, min_resp_time, success_rate])
 
     def simulate(self):
         """Simulates the load test."""
@@ -124,6 +131,7 @@ class Simulator:
         time_last_inform = 0
         time_last_plot = 0
         time_new_state_started = time.time()
+        self.start_simulation_time = time.time()
         thread_number = 0
         user_thread = None
 
@@ -207,17 +215,20 @@ class Simulator:
                 self.rtp.save()
 
 
-def fun(x, timeout):
+def fun(x, timeout) -> List[app_outcome.AppOutcome]:
     """Function to simulate a request to the server."""
     a = random.random()
     time.sleep(a)
-    return app_outcome.AppOutcome(times=[a], body="test", status_code=(200 if a < 0.5 else 404))
+    return [app_outcome.AppOutcome(req_time=a, body="test", status_code=(200 if a < 0.5 else 404), url_requested="test", url_returned="test"),
+            app_outcome.AppOutcome(req_time=a + 2, body="test", status_code=(200 if a < 0.5 else 404), url_requested="test", url_returned="test")]
 
 
 def main():
     """Main function."""
     sim = Simulator([(fun, 1)], 5, None, 5, 5, 5, 10)
     sim.simulate()
+
+    print(sim.total_action_results)
 
     os.system("rtp.pdf")
 

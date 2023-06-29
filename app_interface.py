@@ -6,17 +6,19 @@
 # pylint: disable=W0703
 # pylint: disable=C0103
 
-from app_outcome import AppOutcome
+from typing import Union, List, Tuple, Iterable
 import time
 import json
 import requests
 import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 try:
     from BeautifulSoup import BeautifulSoup
 except ImportError:
     from bs4 import BeautifulSoup
+
+from app_outcome import AppOutcome
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 # Create class from functions below
@@ -30,9 +32,7 @@ class AppInterface:
         self.timeout = timeout
         self.BASE_URL = base_url
 
-        self.EXCEPTION_CODE = 999
-
-    def simple_get(self, endpoint: str) -> AppOutcome:
+    def simple_get(self, endpoint: str) -> List[AppOutcome]:
         ''' Makes a GET request to the specified URL.
         :param endpoint: Endpoint to make the request to (e.g. / or /account)
         :return: A tuple (success, body) where success is True if the request was successful, False otherwise, and body is the body of the response
@@ -42,13 +42,13 @@ class AppInterface:
             response = self.s.get(self.BASE_URL + endpoint,
                                   timeout=self.timeout, verify=False)
 
-            return AppOutcome(times=[time.time() - st], body=response.text, status_code=response.status_code)
+            return [AppOutcome.from_response(time.time() - st, endpoint, response)]
 
         except Exception as e:
             # Return false and info about exception
-            return AppOutcome(times=[time.time() - st], body=str(e), status_code=self.EXCEPTION_CODE)
+            return [AppOutcome.from_exception(time.time() - st, endpoint, e)]
 
-    def simple_post(self, endpoint, data):
+    def simple_post(self, endpoint, data) -> List[AppOutcome]:
         ''' Makes a POST request to the specified URL.
         :param endpoint: Endpoint to make the request to (e.g. / or /account)
         :param data: Data to send in the POST request (e.g. {"username": "test", "password": "test"})
@@ -65,17 +65,13 @@ class AppInterface:
         try:
             response = self.s.post(self.BASE_URL + endpoint, data=data,
                                    timeout=self.timeout, verify=False, headers=headers)
-            en = time.time()
 
-            outcome = AppOutcome(times=[en - st], body=response.text,
-                                 status_code=response.status_code, response_reason=response.reason)
-
-            return outcome
+            return [AppOutcome.from_response(time.time() - st, endpoint, response)]
 
         except Exception as e:
-            return AppOutcome(times=[time.time() - st], body=str(e), status_code=self.EXCEPTION_CODE)
+            return [AppOutcome.from_exception(time.time() - st, endpoint, e)]
 
-    def get_token_and_post(self, token_endpoint, post_endpoint, data):
+    def get_token_and_post(self, token_endpoint, post_endpoint, data) -> List[AppOutcome]:
         ''' Makes a POST request to the specified URL.
         :param token_endpoint: Endpoint to make the request to to get the token (e.g. / or /account)
         :param post_endpoint: Endpoint to make the request to (e.g. / or /account)
@@ -85,23 +81,23 @@ class AppInterface:
         assert isinstance(data, dict), "Data must be a dictionary"
 
         # Get page with token
-        outcome = self.simple_get(token_endpoint)
-        if not outcome.success:
-            return outcome
+        outcome_get = self.simple_get(token_endpoint)
+        if not all(outcome.success for outcome in outcome_get):
+            return [outcome_get]
 
         # Get token
-        soup = BeautifulSoup(outcome.body, "html.parser")
+        soup = BeautifulSoup(outcome_get[-1].body, "html.parser")
         try:
             token = soup.find("input", {"name": "__RequestVerificationToken"})[
                 "value"]
         except Exception as e:
-            return AppOutcome(times=outcome.times, body=str(e), status_code=self.EXCEPTION_CODE)
+            return [AppOutcome.from_exception(sum(o.time for o in outcome_get), token_endpoint, e)]
 
         # Post
-        outcome = outcome.merge(self.simple_post(
-            post_endpoint, {"__RequestVerificationToken": token, **data}))
+        outcome_post = self.simple_post(
+            post_endpoint, {"__RequestVerificationToken": token, **data})
 
-        return outcome
+        return outcome_get + outcome_post
 
     def __del__(self):
         ''' Destructor. '''
