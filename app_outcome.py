@@ -43,7 +43,7 @@ class AppOutcome:
         return str(self)
 
 
-def get_stats(outcomes: List[AppOutcome]) -> (float, float):
+def get_stats(outcomes: List[AppOutcome]) -> (float, float, float, float):
     """ Returns the average req_time of the given outcomes. """
 
     avg_resp_req_time = (sum(outcome.req_time for outcome in outcomes) /

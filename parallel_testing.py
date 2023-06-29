@@ -64,18 +64,20 @@ class Simulator:
         self.timeout = timeout
         self.actions = actions
         self.result_queue = result_queue if result_queue is not None else queue.Queue()
+        self.stats_plot_queue = queue.Queue()
+        self.action_outcomes = queue.Queue()
         self.inform_time = 2  # Inform the user every x seconds via the console
         self.rtp_update_time = 1  # Update the real time plots every x second
+        self.retrieve_stats_time = 0.49  # Retrieve stats every x seconds
 
-        self.start_simulation_time = 0
+        self.sim_times = []
 
         self.current_users = 0
         self.thread_pool = set()
-        self.total_action_results = []
 
         # Initialize real time plots
         self.rtp = real_time_plot.RealTimePlot("Load Test Results", "Time (s)", [
-            "Number of users", "Response time (s)", "Success rate"], [1, 3, 1])
+            "Number of users", "Number of requests", "Response time (s)", "Success rate"], [1, 1, 3, 1])
 
     def __simulate_user(self, user_id) -> List[app_outcome.AppOutcome]:
         """
@@ -103,26 +105,46 @@ class Simulator:
         # Register the thread in the thread pool
         self.thread_pool.add(thread)
 
-    def __show_progress(self):
-        """Shows the progress of the load test."""
-        # Get content of the result queue
+    def __retrieve_stats(self):
+        """Retrieves the stats from the result queue."""
         results = []
         while True:
             try:
                 result = self.result_queue.get_nowait()
+
                 results.extend(result)
-                self.total_action_results.extend(
-                    r.light_copy() for r in result)
+                self.action_outcomes.put(r.light_copy() for r in result)
             except queue.Empty:
                 break
 
         # Get stats
-        avg_resp_time, max_resp_time, min_resp_time, success_rate = app_outcome.get_stats(
-            results)
+        stats = app_outcome.get_stats(results)
+
+        self.stats_plot_queue.put((*stats, len(results)))
+
+    def __show_progress(self):
+        """Shows the progress of the load test."""
+        # Get content of the result queue
+        stats = []
+        while True:
+            try:
+                stat = self.stats_plot_queue.get_nowait()
+                stats.append(stat)
+            except queue.Empty:
+                break
 
         # Update real time plots
-        self.rtp.update_line(
-            [self.current_users, avg_resp_time, max_resp_time, min_resp_time, success_rate])
+        for stat in stats:
+            avg, max_r, min_r, sr, len_res = stat
+
+        st = time.time()
+        if len(stats) > 0:
+            self.rtp.update_line(
+                [self.current_users, len_res, avg, max_r, min_r, sr])
+        else:
+            self.rtp.update_line([self.current_users, 0, 0, 0, 0, 0])
+
+        self.sim_times.append(time.time() - st)
 
     def simulate(self):
         """Simulates the load test."""
@@ -130,10 +152,12 @@ class Simulator:
         state = self.State.RAMP_UP
         time_last_inform = 0
         time_last_plot = 0
+        time_last_retrieve_stats = 0
         time_new_state_started = time.time()
-        self.start_simulation_time = time.time()
+
         thread_number = 0
         user_thread = None
+        retrieve_stats_thread = None
 
         while state != self.State.FINISHED:
 
@@ -188,9 +212,24 @@ class Simulator:
                     f"Current number of users: {self.current_users}/{self.peak_users}")
                 time_last_inform = time.time()
 
+            # Retrieve stats
+            if time.time() - time_last_retrieve_stats >= self.retrieve_stats_time:
+                if retrieve_stats_thread is not None:
+                    retrieve_stats_thread.join()
+
+                retrieve_stats_thread = threading.Thread(
+                    target=self.__retrieve_stats,
+                    daemon=True,
+                )
+
+                retrieve_stats_thread.start()
+
+                time_last_retrieve_stats = time.time()
+
             # Manage real time plots
             if time.time() - time_last_plot >= self.rtp_update_time:
                 self.__show_progress()
+
                 time_last_plot = time.time()
 
             # Transition logic #
@@ -228,7 +267,7 @@ def main():
     sim = Simulator([(fun, 1)], 5, None, 5, 5, 5, 10)
     sim.simulate()
 
-    print(sim.total_action_results)
+    print(sim.sim_times)
 
     os.system("rtp.pdf")
 
