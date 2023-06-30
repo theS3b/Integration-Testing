@@ -5,13 +5,14 @@
 import time
 import threading
 import random
-import queue
+import collections
 from math import ceil, floor
 from enum import Enum
 import os
 from typing import Union, List, Tuple, Iterable
 from async_real_time_plot import async_real_time_plot, STOP_RTP, SAVE_STOP_RTP
 import app_outcome
+from multiprocessing import Process
 
 # Disable pylint warnings
 # pylint: disable=C0103
@@ -30,6 +31,7 @@ class Simulator:
 
     def __init__(
         self,
+        data_queue: collections.deque,
         actions,
         peak_users,
         ramp_up_time,
@@ -52,6 +54,7 @@ class Simulator:
         assert ramp_up_time > 0, "Ramp up time must be greater than 0"
         assert ramp_down_time > 0, "Ramp down time must be greater than 0"
         assert timeout > 0, "Timeout must be greater than 0"
+        
 
         self.peak_users = peak_users
         self.ramp_up_time = ramp_up_time
@@ -59,11 +62,10 @@ class Simulator:
         self.ramp_down_time = ramp_down_time
         self.timeout = timeout
         self.actions = actions
-        self.result_queue: queue.Queue[List[app_outcome.AppOutcome]] = queue.Queue(
-        )
+        self.result_queue = collections.deque()
 
-        self.rtp_queue = queue.Queue()
-        self.action_outcomes = queue.Queue()
+        self.rtp_queue = data_queue
+        self.action_outcomes = collections.deque()
         self.inform_time = 2  # Inform the user every x seconds via the console
         self.rtp_update_time = 1  # Update the real time plots every x second
         self.retrieve_stats_time = 0.49  # Retrieve stats every x seconds
@@ -74,14 +76,15 @@ class Simulator:
         self.thread_pool = set()
 
         # Initialize real time plots
-        self.artp_thread = threading.Thread(target=async_real_time_plot, args=(
+        self.artp_process = Process(target=async_real_time_plot, args=(
             "Load Test Results", "Time (s)",
             ["Number of users", "Number of requests",
              "Response time (s)", "Success rate"],
             [1, 1, 3, 1],
             self.rtp_queue
-        ), daemon=True)
-        self.artp_thread.start()
+        ))
+
+        self.artp_process.start()
 
     def __simulate_user(self, user_id) -> List[app_outcome.AppOutcome]:
         """
@@ -114,14 +117,10 @@ class Simulator:
         # Get content of the result queue
 
         results = []
-        while True:
-            try:
-                result = self.result_queue.get_nowait()
-
-                results.extend(result)
-                self.action_outcomes.put(r.light_copy() for r in result)
-            except queue.Empty:
-                break
+        while self.result_queue:
+            result = self.result_queue.popleft()
+            results.extend(result)
+            self.action_outcomes.append(r.light_copy() for r in result)
 
         # Get stats
         if len(results) > 0:
@@ -129,11 +128,11 @@ class Simulator:
 
             max_resp_req_time, avg_resp_req_time, min_resp_req_time, success_rate = stats
 
-            self.rtp_queue.put(
+            self.rtp_queue.append(
                 (True, [self.current_users, len(results), avg_resp_req_time, success_rate, max_resp_req_time, min_resp_req_time]))
 
         else:
-            self.rtp_queue.put((True, [self.current_users, 0, 0, 0, 0, 0]))
+            self.rtp_queue.append((True, [self.current_users, 0, 0, 0, 0, 0]))
 
     def simulate(self):
         """Simulates the load test."""
@@ -152,7 +151,7 @@ class Simulator:
             if user_thread is None:
                 thread_number += 1
                 user_thread = threading.Thread(
-                    target=lambda: self.result_queue.put(
+                    target=lambda: self.result_queue.append(
                         self.__simulate_user(thread_number)
                     ),
                     daemon=True,
@@ -227,8 +226,7 @@ class Simulator:
             if state == self.State.FINISHED:
                 print("Load testing finished.")
                 self.__show_progress()
-                self.rtp_queue.put(SAVE_STOP_RTP)
-                self.artp_thread.join()
+                self.rtp_queue.append(SAVE_STOP_RTP)
 
 
 def fun(x, timeout) -> List[app_outcome.AppOutcome]:

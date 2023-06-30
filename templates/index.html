@@ -11,34 +11,61 @@
 
 <script type="text/javascript">
     var intervalId;
-    function rand() {
-        return Math.random();
-    }
+    var graph = document.getElementById('graph');
+
+    var trace1 = {
+        x: [0],
+        y: [0],
+        type: 'scatter',
+        xaxis: 'x1',
+        yaxis: 'y1',
+        name: 'Trace 1'
+        };
+
+        var trace2 = {
+        x: [0],
+        y: [0],
+        xaxis: 'x2',
+        yaxis: 'y2',
+        type: 'scatter',
+        name: 'Trace 2'
+        };
+
+        var data = [trace1, trace2];
+
+        var layout = {
+            grid: {rows: 2, columns: 1, pattern: 'independent', roworder: 'top to bottom'},
+            responsive: true,
+            title: {
+            text: 'Real-Time Plot',
+            xref: 'paper',
+            x: 0.5,
+            xanchor: 'center',
+            yref: 'container',
+            y: 0.95,
+            yanchor: 'top',
+            font: {
+                size: 24
+            }
+        }
+        };
+
+        Plotly.newPlot('graph', data, layout);
+
 
     function updatePlot() {
         // Retrieve data from the server
         $.getJSON('/data', function(data) {
 
-            Plotly.extendTraces('graph', {
-                y: [data.data.y]
-            }, [0])
+            Plotly.restyle(graph, {
+                x: [data.data[0].x, data.data[1].x],
+                y: [data.data[0].y, data.data[1].y]
+            });
 
-            cnt = cnt+1;
-            if(cnt === 100) clearInterval(interval);
-            
         });
     }
 
-    Plotly.plot('graph', [{
-        y: [0],
-        mode: 'lines+markers', 
-        marker: {size: 8},
-        line: {width: 4}
-    }]);
-
-    var cnt = 0;
-    var interval = setInterval(updatePlot, 500);
-    
-    
+    // Start the real-time data update
+    intervalId = setInterval(updatePlot, 2000);
 </script>
 </html>
