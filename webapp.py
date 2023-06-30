@@ -28,8 +28,8 @@ def index():
 def get_data():
     # Generate random data for the subplots
     app.x[0] += range(app.x[0][-1], app.x[0][-1] + 10)
-    app.y[0] += [random.randint(1, 10) for _ in range(10)]
-    app.y[1] += [random.randint(1, 10) for _ in range(10)]
+    app.y[0] = [random.randint(1, 10) for _ in range(10)]
+    app.y[1] = [random.randint(1, 10) for _ in range(10)]
     # Add more y_data lists for additional subplots
 
     # Return the data as a JSON response
