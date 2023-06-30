@@ -21,6 +21,14 @@ var trace1 = {
     name: 'Trace 1'
 };
 
+var trace11 = {
+    y: [0],
+    type: 'scatter',
+    xaxis: 'x1',
+    yaxis: 'y1',
+    name: 'Trace 11'
+};
+
 var trace2 = {
     y: [0],
     xaxis: 'x2',
@@ -29,7 +37,7 @@ var trace2 = {
     name: 'Trace 2'
 };
 
-var initial_data = [trace1, trace2];
+var initial_data = [trace1, trace11, trace2];
 
 var layout = {
     grid: { rows: 2, columns: 1, pattern: 'independent', roworder: 'top to bottom' },
@@ -45,10 +53,28 @@ var layout = {
         font: {
             size: 24
         }
+    },
+    xaxis2: {
+        title: {
+            text: 'Time',
+            font: {
+                size: 18,
+                color: '#7f7f7f'
+            }
+        }
     }
 };
 
-Plotly.newPlot('graph', initial_data, layout);
+
+
+function createPlot() {
+    // Retrieve data from the server
+    $.getJSON('/config', function (data) {
+        // Update the plot with the new configuration
+        console.log(data)
+        Plotly.newPlot('graph', data.traces, data.layout);
+    });
+}
 
 
 function updatePlot() {
@@ -62,6 +88,9 @@ function updatePlot() {
         }
     });
 }
+
+// Create the plot
+createPlot();
 
 // Start the real-time data update
 intervalId = setInterval(updatePlot, 2000);
