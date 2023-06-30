@@ -1,6 +1,8 @@
 from flask import Flask, render_template
 import random
-import queue
+from collections import deque
+import time
+import multiprocessing as mp
 
 
 class QueueFlaskApp(Flask):
@@ -8,7 +10,7 @@ class QueueFlaskApp(Flask):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.data_queue = queue.Queue()
+        self.data_queue = mp.Queue()
         self.x = [[0]]
         self.y = [[0], [0]]
 
@@ -26,21 +28,43 @@ def index():
 
 @app.route('/data')
 def get_data():
-    # Generate random data for the subplots
-    app.x[0] += range(app.x[0][-1], app.x[0][-1] + 10)
-    app.y[0] = [random.randint(1, 10) for _ in range(10)]
-    app.y[1] = [random.randint(1, 10) for _ in range(10)]
-    # Add more y_data lists for additional subplots
+    # Get data from the queue
+    if not app.data_queue.empty():
+        new_data = app.data_queue.get()
 
-    # Return the data as a JSON response
-    return {
-        'data': [
-            {'x': app.x[0], 'y': app.y[0], 'type': 'scatter'},
-            {'x': app.x[0], 'y': app.y[1], 'type': 'scatter'}
-            # Add more dictionaries for additional subplots
-        ]
-    }
+        print(new_data)
+        # Return the data as a JSON response
+        return {
+            'data': [
+                {'y': new_data[0], 'type': 'scatter'},
+                {'y': new_data[1], 'type': 'scatter'}
+                # Add more dictionaries for additional subplots
+            ]
+        }
+    else:
+        return {'data': []}
+
+
+def generate_data(queue):
+    while True:
+        # Generate random data
+        data = [[random.randint(0, 10) for _ in range(5)],
+                [random.randint(0, 10) for _ in range(5)]]
+
+        # Put the data in the queue
+        queue.put(data)
+
+        # Sleep for 1 second
+        time.sleep(1)
 
 
 if __name__ == '__main__':
+    data_process = mp.Process(target=generate_data,
+                              args=(app.get_data_queue(),))
+    data_process.start()
+
+    # Start the Flask app
     app.run(debug=True)
+
+    # Terminate the data generation process when the Flask app exits
+    data_process.terminate()
