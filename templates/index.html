@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-Time Plot</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<body>
+    <div id="graph"></div>
+</body>
+
+<script type="text/javascript">
+    var intervalId;
+    function rand() {
+        return Math.random();
+    }
+
+    function updatePlot() {
+        // Retrieve data from the server
+        $.getJSON('/data', function(data) {
+
+            Plotly.extendTraces('graph', {
+                y: [data.data.y]
+            }, [0])
+
+            cnt = cnt+1;
+            if(cnt === 100) clearInterval(interval);
+            
+        });
+    }
+
+    Plotly.plot('graph', [{
+        y: [0],
+        mode: 'lines+markers', 
+        marker: {size: 8},
+        line: {width: 4}
+    }]);
+
+    var cnt = 0;
+    var interval = setInterval(updatePlot, 500);
+    
+    
+</script>
+</html>

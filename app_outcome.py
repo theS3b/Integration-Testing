@@ -58,7 +58,7 @@ def get_stats(outcomes: List[AppOutcome]) -> (float, float, float, float):
     success_rate = (sum(outcome.success for outcome in outcomes) /
                     len(outcomes) if len(outcomes) > 0 else 0)
 
-    return avg_resp_req_time, max_resp_req_time, min_resp_req_time, success_rate
+    return max_resp_req_time, avg_resp_req_time, min_resp_req_time, success_rate
 
 
 def main():

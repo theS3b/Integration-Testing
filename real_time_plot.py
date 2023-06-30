@@ -6,17 +6,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import pyformulas as pf
+import queue
 
 
 class RealTimePlot:
     """Class that can be used to plot data in real time."""
 
-    def __init__(self, title, x_label, y_labels, configuration):
+    def __init__(self, title, x_label, y_labels, configuration, data: queue.Queue = None):
         """
         :param title: Title of the plot
         :param x_label: Label of the x axis
         :param y_labels: List of labels of the y axis
         :param configuration: Configuration of the plot: [nb_lines1, nb_lines2, ...]
+        :param data: Queue containing if the plotting should continue and the data to plot (continue, data)
         """
         assert isinstance(y_labels, list), "Y labels must be a list"
         assert isinstance(x_label, str), "X label must be a string"
@@ -52,6 +54,7 @@ class RealTimePlot:
 
         self.configuration = configuration
         self.title = title
+        self.data_queue = data
 
     def update_line(self, new_data):
         """
@@ -88,14 +91,42 @@ class RealTimePlot:
         """Closes the plot."""
         plt.close()
 
+    def run(self):
+        """Runs the plot."""
+        assert self.data_queue is not None, "Data queue must be specified for the plot to run as a thread."
+
+        while True:
+            continue_run, new_data = self.data_queue.get(block=True)
+            if not continue_run:
+                break
+
+            self.update_line(new_data)
+
 
 # Test
 if __name__ == "__main__":
     # Test the RealTimePlot class
+    """
     rtp = RealTimePlot("Test", "X", ["Y1", "Y2"], [2, 1])
 
     for i in range(50):
         rtp.update_line((i, i**2, i**3))
         time.sleep(0.01)
 
+    rtp.close()
+"""
+    # Test the RealTimePlot class as a thread
+    q = queue.Queue()
+    rtp = RealTimePlot("Test", "X", ["Y1", "Y2"], [2, 1], q)
+
+    import threading
+    t = threading.Thread(target=rtp.run)
+    t.start()
+
+    for i in range(50):
+        q.put((True, (i, i**2, i**3)))
+        time.sleep(0.01)
+
+    q.put((False, None))
+    t.join()
     rtp.close()

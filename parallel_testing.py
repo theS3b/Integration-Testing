@@ -10,7 +10,7 @@ from math import ceil, floor
 from enum import Enum
 import os
 from typing import Union, List, Tuple, Iterable
-import real_time_plot
+from async_real_time_plot import async_real_time_plot, STOP_RTP, SAVE_STOP_RTP
 import app_outcome
 
 # Disable pylint warnings
@@ -32,7 +32,6 @@ class Simulator:
         self,
         actions,
         peak_users,
-        result_queue: queue.Queue[List[app_outcome.AppOutcome]],
         ramp_up_time,
         load_time,
         ramp_down_time,
@@ -53,9 +52,6 @@ class Simulator:
         assert ramp_up_time > 0, "Ramp up time must be greater than 0"
         assert ramp_down_time > 0, "Ramp down time must be greater than 0"
         assert timeout > 0, "Timeout must be greater than 0"
-        assert result_queue is None or isinstance(
-            result_queue, queue.Queue
-        ), "Result queue must be a queue.Queue (thread safe)"
 
         self.peak_users = peak_users
         self.ramp_up_time = ramp_up_time
@@ -63,8 +59,10 @@ class Simulator:
         self.ramp_down_time = ramp_down_time
         self.timeout = timeout
         self.actions = actions
-        self.result_queue = result_queue if result_queue is not None else queue.Queue()
-        self.stats_plot_queue = queue.Queue()
+        self.result_queue: queue.Queue[List[app_outcome.AppOutcome]] = queue.Queue(
+        )
+
+        self.rtp_queue = queue.Queue()
         self.action_outcomes = queue.Queue()
         self.inform_time = 2  # Inform the user every x seconds via the console
         self.rtp_update_time = 1  # Update the real time plots every x second
@@ -76,8 +74,14 @@ class Simulator:
         self.thread_pool = set()
 
         # Initialize real time plots
-        self.rtp = real_time_plot.RealTimePlot("Load Test Results", "Time (s)", [
-            "Number of users", "Number of requests", "Response time (s)", "Success rate"], [1, 1, 3, 1])
+        self.artp_thread = threading.Thread(target=async_real_time_plot, args=(
+            "Load Test Results", "Time (s)",
+            ["Number of users", "Number of requests",
+             "Response time (s)", "Success rate"],
+            [1, 1, 3, 1],
+            self.rtp_queue
+        ), daemon=True)
+        self.artp_thread.start()
 
     def __simulate_user(self, user_id) -> List[app_outcome.AppOutcome]:
         """
@@ -105,8 +109,10 @@ class Simulator:
         # Register the thread in the thread pool
         self.thread_pool.add(thread)
 
-    def __retrieve_stats(self):
-        """Retrieves the stats from the result queue."""
+    def __show_progress(self):
+        """Shows the progress of the load test."""
+        # Get content of the result queue
+
         results = []
         while True:
             try:
@@ -118,33 +124,16 @@ class Simulator:
                 break
 
         # Get stats
-        stats = app_outcome.get_stats(results)
+        if len(results) > 0:
+            stats = app_outcome.get_stats(results)
 
-        self.stats_plot_queue.put((*stats, len(results)))
+            max_resp_req_time, avg_resp_req_time, min_resp_req_time, success_rate = stats
 
-    def __show_progress(self):
-        """Shows the progress of the load test."""
-        # Get content of the result queue
-        stats = []
-        while True:
-            try:
-                stat = self.stats_plot_queue.get_nowait()
-                stats.append(stat)
-            except queue.Empty:
-                break
+            self.rtp_queue.put(
+                (True, [self.current_users, len(results), avg_resp_req_time, success_rate, max_resp_req_time, min_resp_req_time]))
 
-        # Update real time plots
-        for stat in stats:
-            avg, max_r, min_r, sr, len_res = stat
-
-        st = time.time()
-        if len(stats) > 0:
-            self.rtp.update_line(
-                [self.current_users, len_res, avg, max_r, min_r, sr])
         else:
-            self.rtp.update_line([self.current_users, 0, 0, 0, 0, 0])
-
-        self.sim_times.append(time.time() - st)
+            self.rtp_queue.put((True, [self.current_users, 0, 0, 0, 0, 0]))
 
     def simulate(self):
         """Simulates the load test."""
@@ -152,14 +141,13 @@ class Simulator:
         state = self.State.RAMP_UP
         time_last_inform = 0
         time_last_plot = 0
-        time_last_retrieve_stats = 0
         time_new_state_started = time.time()
 
         thread_number = 0
         user_thread = None
-        retrieve_stats_thread = None
 
         while state != self.State.FINISHED:
+            st = time.time()
 
             if user_thread is None:
                 thread_number += 1
@@ -212,25 +200,13 @@ class Simulator:
                     f"Current number of users: {self.current_users}/{self.peak_users}")
                 time_last_inform = time.time()
 
-            # Retrieve stats
-            if time.time() - time_last_retrieve_stats >= self.retrieve_stats_time:
-                if retrieve_stats_thread is not None:
-                    retrieve_stats_thread.join()
-
-                retrieve_stats_thread = threading.Thread(
-                    target=self.__retrieve_stats,
-                    daemon=True,
-                )
-
-                retrieve_stats_thread.start()
-
-                time_last_retrieve_stats = time.time()
-
             # Manage real time plots
             if time.time() - time_last_plot >= self.rtp_update_time:
                 self.__show_progress()
 
                 time_last_plot = time.time()
+
+            self.sim_times.append(time.time() - st)
 
             # Transition logic #
             if state == self.State.RAMP_UP and self.current_users >= self.peak_users:
@@ -251,7 +227,8 @@ class Simulator:
             if state == self.State.FINISHED:
                 print("Load testing finished.")
                 self.__show_progress()
-                self.rtp.save()
+                self.rtp_queue.put(SAVE_STOP_RTP)
+                self.artp_thread.join()
 
 
 def fun(x, timeout) -> List[app_outcome.AppOutcome]:
@@ -264,10 +241,10 @@ def fun(x, timeout) -> List[app_outcome.AppOutcome]:
 
 def main():
     """Main function."""
-    sim = Simulator([(fun, 1)], 5, None, 5, 5, 5, 10)
+    sim = Simulator([(fun, 1)], 5, 5, 5, 5, 10)
     sim.simulate()
 
-    print(sim.sim_times)
+    print(max(sim.sim_times))
 
     os.system("rtp.pdf")
 

@@ -83,7 +83,7 @@ class AppInterface:
         # Get page with token
         outcome_get = self.simple_get(token_endpoint)
         if not all(outcome.success for outcome in outcome_get):
-            return [outcome_get]
+            return outcome_get
 
         # Get token
         soup = BeautifulSoup(outcome_get[-1].body, "html.parser")
@@ -91,7 +91,7 @@ class AppInterface:
             token = soup.find("input", {"name": "__RequestVerificationToken"})[
                 "value"]
         except Exception as e:
-            return [AppOutcome.from_exception(sum(o.time for o in outcome_get), token_endpoint, e)]
+            return [AppOutcome.from_exception(sum(o.req_time for o in outcome_get), token_endpoint, e)]
 
         # Post
         outcome_post = self.simple_post(
